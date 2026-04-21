@@ -1,7 +1,9 @@
 import re
 import unicodedata
 import pandas as pd
-from src.catalogs import CATEGORY_MEANINGS
+
+from src.catalogs import CATEGORY_MEANINGS, UNKNOWN_CATEGORY_MESSAGE
+
 
 def _normalize_string(value: str) -> str:
     value = str(value).strip().lower()
@@ -90,22 +92,6 @@ def normalize_text_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame
     return df
 
 
-def create_derived_variables(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-
-    if {"cantidadevasores", "cantidadtrafico"}.issubset(df.columns):
-        df["tasa_evasion"] = (
-            df["cantidadevasores"] / df["cantidadtrafico"].replace(0, pd.NA)
-        ) * 100
-
-    if {"cantidadexentos787", "cantidadtrafico"}.issubset(df.columns):
-        df["tasa_exentos"] = (
-            df["cantidadexentos787"] / df["cantidadtrafico"].replace(0, pd.NA)
-        ) * 100
-
-    return df
-
-
 def normalize_category_value(value):
     if pd.isna(value):
         return "Sin dato"
@@ -144,8 +130,25 @@ def add_category_labels(df: pd.DataFrame) -> pd.DataFrame:
 
     if "categoriatarifa" in df.columns:
         df["categoriatarifa_norm"] = df["categoriatarifa"].apply(normalize_category_value)
-        df["categoria_significado"] = df["categoriatarifa_norm"].map(CATEGORY_MEANINGS).fillna("Significado no configurado")
-        df["categoria_display"] = df["categoriatarifa_norm"]
+        df["categoria_significado"] = df["categoriatarifa_norm"].map(CATEGORY_MEANINGS)
+        df["categoria_conocida"] = df["categoria_significado"].notna()
+        df["categoria_significado"] = df["categoria_significado"].fillna(UNKNOWN_CATEGORY_MESSAGE)
+
+    return df
+
+
+def create_derived_variables(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    if {"cantidadevasores", "cantidadtrafico"}.issubset(df.columns):
+        df["tasa_evasion"] = (
+            df["cantidadevasores"] / df["cantidadtrafico"].replace(0, pd.NA)
+        ) * 100
+
+    if {"cantidadexentos787", "cantidadtrafico"}.issubset(df.columns):
+        df["tasa_exentos"] = (
+            df["cantidadexentos787"] / df["cantidadtrafico"].replace(0, pd.NA)
+        ) * 100
 
     return df
 
@@ -174,7 +177,6 @@ def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df = create_derived_variables(df)
-
     df = add_category_labels(df)
 
     return df

@@ -5,5 +5,15 @@ CATEGORY_MEANINGS = {
     "IV": "Vehículos de carga de cinco ejes",
     "V": "Vehículos de carga de seis ejes",
     "VI": "Vehículos pesados de carga",
-    "VII": "Vehículos pesados de carga"
+    "VII": "Vehículos pesados de carga",
+}
+
+UNKNOWN_CATEGORY_MESSAGE = (
+    "Categoría especial presente en la fuente; revisar acto tarifario o documentación del peaje."
+)
+
+METRIC_LABELS = {
+    "cantidadtrafico": "Tráfico",
+    "cantidadevasores": "Evasores",
+    "cantidadexentos787": "Exentos",
 }

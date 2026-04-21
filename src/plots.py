@@ -2,6 +2,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from src.catalogs import METRIC_LABELS
+
 
 def empty_figure(title: str, message: str = "No hay datos para mostrar"):
     fig = go.Figure()
@@ -26,17 +28,25 @@ def empty_figure(title: str, message: str = "No hay datos para mostrar"):
     return fig
 
 
-def estilo_fig(fig, xaxis_title="", yaxis_title="Valor"):
+def estilo_fig(fig, xaxis_title="", yaxis_title="Valor", height=430):
     fig.update_layout(
         template="plotly_dark",
         title_x=0,
-        height=430,
+        height=height,
         margin=dict(l=20, r=20, t=60, b=20),
         legend_title_text="",
     )
     fig.update_xaxes(title=xaxis_title)
     fig.update_yaxes(title=yaxis_title)
     return fig
+
+
+def _dynamic_title(total_items: int, top_n: int, singular: str, plural: str, top_label: str):
+    if total_items <= 1:
+        return singular
+    if total_items <= top_n:
+        return f"{plural} ({total_items})"
+    return f"{top_label} {top_n}"
 
 
 def plot_trafico_anual(df: pd.DataFrame):
@@ -60,6 +70,7 @@ def plot_trafico_anual(df: pd.DataFrame):
         text="cantidadtrafico",
         title="Tráfico total por año",
     )
+    fig.update_traces(texttemplate="%{text:,.0f}")
     return estilo_fig(fig, "Año", "Cantidad de tráfico")
 
 
@@ -102,7 +113,7 @@ def plot_heatmap_mes_categoria(df: pd.DataFrame):
 
     meses = [
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
     ]
 
     tabla = (
@@ -119,7 +130,8 @@ def plot_heatmap_mes_categoria(df: pd.DataFrame):
         category_orders={"mes_nombre": meses},
         title="Concentración de tráfico por mes y categoría",
     )
-    return estilo_fig(fig, "Categoría tarifaria", "Mes")
+    fig.update_xaxes(tickangle=-45)
+    return estilo_fig(fig, "Categoría tarifaria", "Mes", height=520)
 
 
 def plot_top_peajes_trafico(df: pd.DataFrame, top_n: int = 10):
@@ -137,14 +149,14 @@ def plot_top_peajes_trafico(df: pd.DataFrame, top_n: int = 10):
 
     total_peajes = len(resumen_total)
     resumen = resumen_total.head(top_n).sort_values("cantidadtrafico", ascending=True)
-    mostrados = len(resumen)
 
-    if total_peajes <= 1:
-        titulo = "Tráfico del peaje seleccionado"
-    elif total_peajes <= top_n:
-        titulo = f"Tráfico de los {mostrados} peajes seleccionados"
-    else:
-        titulo = f"Top {mostrados} peajes con mayor tráfico"
+    titulo = _dynamic_title(
+        total_peajes,
+        top_n,
+        "Tráfico del peaje seleccionado",
+        "Tráfico de peajes seleccionados",
+        "Top peajes con mayor tráfico",
+    )
 
     fig = px.bar(
         resumen,
@@ -154,6 +166,7 @@ def plot_top_peajes_trafico(df: pd.DataFrame, top_n: int = 10):
         text="cantidadtrafico",
         title=titulo,
     )
+    fig.update_traces(texttemplate="%{text:,.0f}")
     return estilo_fig(fig, "Cantidad de tráfico", "Peaje")
 
 
@@ -170,26 +183,29 @@ def plot_participacion_peajes(df: pd.DataFrame, top_n: int = 8):
     if resumen_total.empty:
         return empty_figure("Participación del tráfico por peaje")
 
-    total_peajes = len(resumen_total)
-    resumen = resumen_total.head(top_n)
-    mostrados = len(resumen)
+    total_general = resumen_total["cantidadtrafico"].sum()
+    resumen = resumen_total.head(top_n).copy()
 
-    if mostrados == 1:
+    if len(resumen) == 1:
         return empty_figure(
             "Participación del tráfico por peaje",
-            "Con un solo peaje seleccionado, este gráfico no aporta comparación."
+            "Con un solo peaje seleccionado este gráfico no aporta comparación.",
         )
 
-    if total_peajes <= top_n:
-        titulo = f"Participación del tráfico en {mostrados} peajes seleccionados"
-    else:
-        titulo = f"Participación del tráfico - Top {mostrados} peajes"
+    suma_top = resumen["cantidadtrafico"].sum()
+    otros = total_general - suma_top
+
+    if otros > 0:
+        fila_otros = pd.DataFrame(
+            [{"peaje": "Otros", "cantidadtrafico": otros}]
+        )
+        resumen = pd.concat([resumen, fila_otros], ignore_index=True)
 
     fig = px.pie(
         resumen,
         names="peaje",
         values="cantidadtrafico",
-        title=titulo,
+        title="Participación del tráfico por peaje",
     )
     return estilo_fig(fig, "", "")
 
@@ -213,10 +229,10 @@ def plot_trafico_categoria(df: pd.DataFrame):
         resumen,
         x=category_col,
         y="cantidadtrafico",
-        text="cantidadtrafico",
         title="Tráfico por categoría tarifaria",
     )
-    return estilo_fig(fig, "Categoría tarifaria", "Cantidad de tráfico")
+    fig.update_xaxes(tickangle=-45)
+    return estilo_fig(fig, "Categoría tarifaria", "Cantidad de tráfico", height=500)
 
 
 def plot_tarifa_promedio_categoria(df: pd.DataFrame):
@@ -240,7 +256,8 @@ def plot_tarifa_promedio_categoria(df: pd.DataFrame):
         y="valortarifa",
         title="Tarifa promedio por categoría",
     )
-    return estilo_fig(fig, "Categoría tarifaria", "Valor tarifa promedio")
+    fig.update_xaxes(tickangle=-45)
+    return estilo_fig(fig, "Categoría tarifaria", "Valor tarifa promedio", height=500)
 
 
 def plot_evasores_peaje(df: pd.DataFrame, top_n: int = 10):
@@ -258,14 +275,14 @@ def plot_evasores_peaje(df: pd.DataFrame, top_n: int = 10):
 
     total_peajes = len(resumen_total)
     resumen = resumen_total.head(top_n).sort_values("cantidadevasores", ascending=True)
-    mostrados = len(resumen)
 
-    if total_peajes <= 1:
-        titulo = "Evasores del peaje seleccionado"
-    elif total_peajes <= top_n:
-        titulo = f"Evasores en los {mostrados} peajes seleccionados"
-    else:
-        titulo = f"Top {mostrados} peajes con más evasores"
+    titulo = _dynamic_title(
+        total_peajes,
+        top_n,
+        "Evasores del peaje seleccionado",
+        "Evasores en peajes seleccionados",
+        "Top peajes con más evasores",
+    )
 
     fig = px.bar(
         resumen,
@@ -275,6 +292,7 @@ def plot_evasores_peaje(df: pd.DataFrame, top_n: int = 10):
         text="cantidadevasores",
         title=titulo,
     )
+    fig.update_traces(texttemplate="%{text:,.0f}")
     return estilo_fig(fig, "Cantidad de evasores", "Peaje")
 
 
@@ -293,14 +311,14 @@ def plot_exentos_peaje(df: pd.DataFrame, top_n: int = 10):
 
     total_peajes = len(resumen_total)
     resumen = resumen_total.head(top_n).sort_values("cantidadexentos787", ascending=True)
-    mostrados = len(resumen)
 
-    if total_peajes <= 1:
-        titulo = "Exentos del peaje seleccionado"
-    elif total_peajes <= top_n:
-        titulo = f"Exentos en los {mostrados} peajes seleccionados"
-    else:
-        titulo = f"Top {mostrados} peajes con más exentos"
+    titulo = _dynamic_title(
+        total_peajes,
+        top_n,
+        "Exentos del peaje seleccionado",
+        "Exentos en peajes seleccionados",
+        "Top peajes con más exentos",
+    )
 
     fig = px.bar(
         resumen,
@@ -310,32 +328,41 @@ def plot_exentos_peaje(df: pd.DataFrame, top_n: int = 10):
         text="cantidadexentos787",
         title=titulo,
     )
+    fig.update_traces(texttemplate="%{text:,.0f}")
     return estilo_fig(fig, "Cantidad de exentos", "Peaje")
 
 
 def plot_tasa_evasion_peaje(df: pd.DataFrame, top_n: int = 10):
-    if "peaje" not in df.columns or "tasa_evasion" not in df.columns:
+    if not {"peaje", "cantidadevasores", "cantidadtrafico"}.issubset(df.columns):
         return empty_figure("Tasa de evasión por peaje")
 
     resumen_total = (
-        df.groupby("peaje", as_index=False)["tasa_evasion"]
-        .mean()
-        .sort_values("tasa_evasion", ascending=False)
+        df.groupby("peaje", as_index=False)
+        .agg(
+            evasores=("cantidadevasores", "sum"),
+            trafico=("cantidadtrafico", "sum"),
+        )
     )
+
+    resumen_total["tasa_evasion"] = (
+        resumen_total["evasores"] / resumen_total["trafico"].replace(0, pd.NA)
+    ) * 100
+
+    resumen_total = resumen_total.sort_values("tasa_evasion", ascending=False)
 
     if resumen_total.empty:
         return empty_figure("Tasa de evasión por peaje")
 
     total_peajes = len(resumen_total)
     resumen = resumen_total.head(top_n).sort_values("tasa_evasion", ascending=True)
-    mostrados = len(resumen)
 
-    if total_peajes <= 1:
-        titulo = "Tasa de evasión del peaje seleccionado"
-    elif total_peajes <= top_n:
-        titulo = f"Tasa de evasión en los {mostrados} peajes seleccionados"
-    else:
-        titulo = f"Top {mostrados} peajes por tasa de evasión"
+    titulo = _dynamic_title(
+        total_peajes,
+        top_n,
+        "Tasa de evasión del peaje seleccionado",
+        "Tasa de evasión en peajes seleccionados",
+        "Top peajes por tasa de evasión",
+    )
 
     fig = px.bar(
         resumen,
@@ -343,7 +370,9 @@ def plot_tasa_evasion_peaje(df: pd.DataFrame, top_n: int = 10):
         y="peaje",
         orientation="h",
         title=titulo,
+        text="tasa_evasion",
     )
+    fig.update_traces(texttemplate="%{text:.4f}%")
     return estilo_fig(fig, "Tasa de evasión (%)", "Peaje")
 
 
@@ -355,11 +384,17 @@ def plot_tarifa_vs_trafico(df: pd.DataFrame):
     if aux.empty:
         return empty_figure("Relación entre tarifa y tráfico")
 
+    color_col = None
+    if "categoriatarifa_norm" in aux.columns:
+        color_col = "categoriatarifa_norm"
+    elif "categoriatarifa" in aux.columns:
+        color_col = "categoriatarifa"
+
     fig = px.scatter(
         aux,
         x="valortarifa",
         y="cantidadtrafico",
-       color="categoriatarifa_norm" if "categoriatarifa_norm" in aux.columns else ("categoriatarifa" if "categoriatarifa" in aux.columns else None),
+        color=color_col,
         hover_data=["peaje"] if "peaje" in aux.columns else None,
         title="Relación entre valor de tarifa y tráfico",
     )
@@ -385,12 +420,14 @@ def plot_compare_peajes(df: pd.DataFrame, peajes: list[str], metric: str):
         .sort_values("periodo")
     )
 
+    metric_label = METRIC_LABELS.get(metric, metric)
+
     fig = px.line(
         resumen,
         x="periodo",
         y=metric,
         color="peaje",
         markers=True,
-        title=f"Comparación mensual de {metric} entre peajes",
+        title=f"Comparación mensual de {metric_label.lower()} entre peajes",
     )
-    return estilo_fig(fig, "Periodo", metric)
+    return estilo_fig(fig, "Periodo", metric_label)
